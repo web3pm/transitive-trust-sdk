@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { TransitiveTrustGraph } from "@ethereum-attestation-service/transitive-trust-sdk";
+import GraphVisualization from "./GraphVisualization";
 import "./App.css";
 
 function App() {
@@ -8,21 +9,36 @@ function App() {
   const [positiveWeight, setPositiveWeight] = useState(0);
   const [negativeWeight, setNegativeWeight] = useState(0);
   const [results, setResults] = useState<any>(null);
+  const [edges, setEdges] = useState<
+    { from: string; to: string; label: string }[]
+  >([]);
 
-  const graph = new TransitiveTrustGraph();
-  graph.addEdge("A", "B", 0.9, 0);
-  graph.addEdge("B", "C", 0.1, 0);
-  graph.addEdge("C", "D", 0.9, 0);
-  graph.addEdge("A", "C", 0.1, 0);
-  graph.addEdge("C", "E", 0.9, 0);
-  graph.addEdge("B", "F", 0.9, 0);
-  graph.addEdge("D", "E", 0.9, 0);
-  graph.addEdge("E", "D", 0.9, 0);
-  graph.addEdge("D", "C", 0.9, 0);
-  graph.addEdge("E", "C", 0.9, 0);
-  graph.addEdge("E", "F", 0, 1);
-  graph.addEdge("F", "G", 0.9, 0);
-  graph.addEdge("G", "C", 0, 0.9);
+  const graph = useMemo(() => {
+    const g = new TransitiveTrustGraph();
+    g.addEdge("A", "B", 0.9, 0);
+    g.addEdge("B", "C", 0.1, 0);
+    g.addEdge("C", "D", 0.9, 0);
+    g.addEdge("A", "C", 0.1, 0);
+    g.addEdge("C", "E", 0.9, 0);
+    g.addEdge("B", "F", 0.9, 0);
+    g.addEdge("D", "E", 0.9, 0);
+    g.addEdge("E", "D", 0.9, 0);
+    g.addEdge("D", "C", 0.9, 0);
+    g.addEdge("E", "C", 0.9, 0);
+    g.addEdge("E", "F", 0, 1);
+    g.addEdge("F", "G", 0.9, 0);
+    g.addEdge("G", "C", 0, 0.9);
+    return g;
+  }, []);
+
+  useEffect(() => {
+    const allEdges = graph.getEdges().map((edge) => ({
+      from: edge.source,
+      to: edge.target,
+      label: `+${edge.positiveWeight}, -${edge.negativeWeight}`,
+    }));
+    setEdges(allEdges);
+  }, [graph]);
 
   const handleRecompute = () => {
     if (!sourceNode) return;
@@ -76,6 +92,8 @@ function App() {
         />
         <button onClick={handleRecompute}>Compute Score</button>
       </div>
+
+      <GraphVisualization edges={edges} />
 
       {results && (
         <div className="results">
