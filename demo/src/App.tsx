@@ -73,10 +73,31 @@ function App() {
     setEdges(memoizedEdges);
   }, [memoizedEdges]);
 
+  type TrustScoreMap = {
+    [target: string]: {
+      positiveScore: number;
+      negativeScore: number;
+      netScore: number;
+    };
+  };
+
+  const sortTrustScores = useCallback(
+    (scores: TrustScoreMap): TrustScoreMap => {
+      const sortedScoresEntries = Object.entries(scores).sort(
+        ([, scoreA], [, scoreB]) => scoreB.netScore - scoreA.netScore
+      );
+      return Object.fromEntries(sortedScoresEntries);
+    },
+    []
+  );
+
   const handleRecompute = () => {
     if (!referenceNode) return;
     const scores = graph.computeTrustScores(referenceNode);
-    setResults(scores);
+
+    const sortedScores = sortTrustScores(scores);
+
+    setResults(sortedScores);
   };
 
   const handleUpdateEdge = () => {
@@ -106,7 +127,9 @@ function App() {
 
     if (referenceNode) {
       const scores = graph.computeTrustScores(referenceNode);
-      setResults(scores);
+      // Sort scores by netScore (descending)
+      const sortedScores = sortTrustScores(scores);
+      setResults(sortedScores);
     }
 
     setToast({
@@ -231,12 +254,16 @@ function App() {
 
         if (allNodes.has(referenceNode)) {
           const scores = newGraph.computeTrustScores(referenceNode);
-          setResults(scores);
+          // Sort scores by netScore (descending)
+          const sortedScores = sortTrustScores(scores);
+          setResults(sortedScores);
         } else if (allNodes.size > 0) {
           const firstNode = Array.from(allNodes)[0];
           setReferenceNode(firstNode);
           const scores = newGraph.computeTrustScores(firstNode);
-          setResults(scores);
+          // Sort scores by netScore (descending)
+          const sortedScores = sortTrustScores(scores);
+          setResults(sortedScores);
         }
       } catch (error) {
         console.error("Error importing CSV:", error);
@@ -263,18 +290,23 @@ function App() {
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
+      // Use batch updates to minimize renders
       ReactDOM.flushSync(() => {
         setReferenceNode(nodeId);
         const scores = graph.computeTrustScores(nodeId);
-        setResults(scores);
+        // Sort scores by netScore (descending)
+        const sortedScores = sortTrustScores(scores);
+        setResults(sortedScores);
       });
 
+      // Separated toast logic to prevent cascading re-renders when toast disappears
       if (nodeId) {
         setToast({
           message: `Reference node set to ${nodeId}`,
           visible: true,
         });
 
+        // Use a custom timer ref to manage toast without triggering cascading re-renders
         const timerId = setTimeout(() => {
           setToast((prevToast) => ({
             ...prevToast,
@@ -282,10 +314,11 @@ function App() {
           }));
         }, 3000);
 
+        // Store timer reference to clean it up if needed
         return () => clearTimeout(timerId);
       }
     },
-    [graph]
+    [graph, sortTrustScores]
   );
 
   const memoizedGetNodeColor = useCallback(getEdgeColor, []);
