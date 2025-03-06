@@ -4,10 +4,15 @@ import { Network } from "vis-network";
 
 interface GraphVisualizationProps {
   edges: { from: string; to: string; label: string }[];
+  onNodeClick: (nodeId: string) => void;
 }
 
-const GraphVisualization: React.FC<GraphVisualizationProps> = ({ edges }) => {
+const GraphVisualization: React.FC<GraphVisualizationProps> = ({
+  edges,
+  onNodeClick,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const networkRef = useRef<Network | null>(null);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -35,13 +40,41 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({ edges }) => {
         physics: {
           enabled: true,
         },
+        nodes: {
+          shape: "dot",
+          size: 16,
+          font: {
+            size: 14,
+          },
+          borderWidth: 2,
+          shadow: true,
+        },
       };
 
-      new Network(containerRef.current, data, options);
+      if (networkRef.current) {
+        networkRef.current.destroy();
+      }
+
+      networkRef.current = new Network(containerRef.current, data, options);
+
+      if (onNodeClick) {
+        networkRef.current.on("click", function (params) {
+          if (params.nodes && params.nodes.length > 0) {
+            onNodeClick(params.nodes[0]);
+          }
+        });
+      }
     }
-  }, [edges]);
+
+    return () => {
+      if (networkRef.current) {
+        networkRef.current.destroy();
+        networkRef.current = null;
+      }
+    };
+  }, [edges, onNodeClick]);
 
   return <div ref={containerRef} style={{ height: "500px" }} />;
 };
 
-export default GraphVisualization;
+export default React.memo(GraphVisualization);

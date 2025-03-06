@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { TransitiveTrustGraph } from "@ethereum-attestation-service/transitive-trust-sdk";
 import GraphVisualization from "./GraphVisualization";
 import "./App.css";
@@ -6,12 +6,17 @@ import "./App.css";
 function App() {
   const [sourceNode, setSourceNode] = useState("");
   const [targetNode, setTargetNode] = useState("");
+  const [referenceNode, setReferenceNode] = useState("A");
   const [positiveWeight, setPositiveWeight] = useState(0);
   const [negativeWeight, setNegativeWeight] = useState(0);
   const [results, setResults] = useState<any>(null);
   const [edges, setEdges] = useState<
     { from: string; to: string; label: string }[]
   >([]);
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({
+    message: "",
+    visible: false,
+  });
 
   const graph = useMemo(() => {
     const g = new TransitiveTrustGraph();
@@ -31,31 +36,90 @@ function App() {
     return g;
   }, []);
 
-  useEffect(() => {
+  const memoizedEdges = useMemo(() => {
     const allEdges = graph.getEdges().map((edge) => ({
       from: edge.source,
       to: edge.target,
       label: `+${edge.positiveWeight}, -${edge.negativeWeight}`,
     }));
-    setEdges(allEdges);
+    return allEdges;
   }, [graph]);
 
+  useEffect(() => {
+    setEdges(memoizedEdges);
+  }, [memoizedEdges]);
+
   const handleRecompute = () => {
-    if (!sourceNode) return;
-    const scores = graph.computeTrustScores(sourceNode);
+    if (!referenceNode) return;
+    const scores = graph.computeTrustScores(referenceNode);
     setResults(scores);
   };
 
   const handleUpdateEdge = () => {
     if (!sourceNode || !targetNode) return;
+
+    const existingEdges = graph.getEdges();
+    const edgeExists = existingEdges.some(
+      (edge) => edge.source === sourceNode && edge.target === targetNode
+    );
+
+    if (edgeExists) {
+      setToast({
+        message: `Edge from ${sourceNode} to ${targetNode} already exists`,
+        visible: true,
+      });
+
+      setTimeout(() => {
+        setToast({ message: "", visible: false });
+      }, 3000);
+
+      return;
+    }
+
     graph.addEdge(sourceNode, targetNode, positiveWeight, negativeWeight);
-    const scores = graph.computeTrustScores(sourceNode);
-    setResults(scores);
+
+    if (referenceNode) {
+      const scores = graph.computeTrustScores(referenceNode);
+      setResults(scores);
+    }
+
+    setToast({
+      message: `Edge from ${sourceNode} to ${targetNode} added`,
+      visible: true,
+    });
+
+    setTimeout(() => {
+      setToast({ message: "", visible: false });
+    }, 3000);
   };
+
+  const handleNodeClick = useCallback(
+    (nodeId: string) => {
+      setReferenceNode(nodeId);
+
+      const scores = graph.computeTrustScores(nodeId);
+      setResults(scores);
+
+      setToast({
+        message: `Reference node set to ${nodeId}`,
+        visible: true,
+      });
+
+      setTimeout(() => {
+        setToast({ message: "", visible: false });
+      }, 3000);
+    },
+    [graph]
+  );
 
   return (
     <div className="App">
       <h1>Transitive Trust Graph Demo</h1>
+
+      {toast.visible && (
+        <div className="toast-notification">{toast.message}</div>
+      )}
+
       <div className="inputs-section">
         <h2> Set up graph</h2>
 
@@ -81,19 +145,19 @@ function App() {
           value={negativeWeight}
           onChange={(e) => setNegativeWeight(Number(e.target.value))}
         />
-        <button onClick={handleUpdateEdge}>Update edge</button>
+        <button onClick={handleUpdateEdge}>Add new edge</button>
       </div>
       <div className="results-section">
-        <h2> Display results</h2>
+        <h2> Trust results</h2>
         <input
-          placeholder="Source Node"
-          value={sourceNode}
-          onChange={(e) => setSourceNode(e.target.value)}
+          placeholder="Reference Node"
+          value={referenceNode}
+          onChange={(e) => setReferenceNode(e.target.value)}
         />
         <button onClick={handleRecompute}>Compute Score</button>
       </div>
 
-      <GraphVisualization edges={edges} />
+      <GraphVisualization edges={edges} onNodeClick={handleNodeClick} />
 
       {results && (
         <div className="results">
