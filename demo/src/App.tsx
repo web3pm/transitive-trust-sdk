@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { TransitiveTrustGraph } from "@ethereum-attestation-service/transitive-trust-sdk";
 import GraphVisualization from "./GraphVisualization";
 import "./App.css";
@@ -17,6 +23,8 @@ function App() {
     message: "",
     visible: false,
   });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const graph = useMemo(() => {
     const g = new TransitiveTrustGraph();
@@ -93,6 +101,146 @@ function App() {
     }, 3000);
   };
 
+  const handleExportCSV = () => {
+    const graphEdges = graph.getEdges();
+
+    const csvContent = [
+      "Source,Target,PositiveWeight,NegativeWeight",
+      ...graphEdges.map(
+        (edge) =>
+          `${edge.source},${edge.target},${edge.positiveWeight},${edge.negativeWeight}`
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", "trust_graph_edges.csv");
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setToast({
+      message: "CSV file downloaded successfully",
+      visible: true,
+    });
+
+    setTimeout(() => {
+      setToast({ message: "", visible: false });
+    }, 3000);
+  };
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const csvContent = e.target?.result as string;
+        if (!csvContent) {
+          throw new Error("Failed to read file content");
+        }
+
+        const lines = csvContent.split("\n");
+
+        const header = lines[0].trim().toLowerCase();
+        if (
+          !header.includes("source") ||
+          !header.includes("target") ||
+          !header.includes("positiveweight") ||
+          !header.includes("negativeweight")
+        ) {
+          throw new Error(
+            "Invalid CSV format. Header must contain Source, Target, PositiveWeight, and NegativeWeight columns"
+          );
+        }
+
+        const newGraph = new TransitiveTrustGraph();
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const values = line.split(",");
+          if (values.length < 4) continue;
+
+          const source = values[0].trim();
+          const target = values[1].trim();
+          const positiveWeight = parseFloat(values[2].trim());
+          const negativeWeight = parseFloat(values[3].trim());
+
+          if (isNaN(positiveWeight) || isNaN(negativeWeight)) {
+            continue;
+          }
+
+          newGraph.addEdge(source, target, positiveWeight, negativeWeight);
+        }
+
+        Object.assign(graph, newGraph);
+
+        const newEdges = newGraph.getEdges().map((edge) => ({
+          from: edge.source,
+          to: edge.target,
+          label: `+${edge.positiveWeight}, -${edge.negativeWeight}`,
+        }));
+
+        setEdges(newEdges);
+
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+
+        setToast({
+          message: "Graph successfully imported from CSV",
+          visible: true,
+        });
+
+        setTimeout(() => {
+          setToast({ message: "", visible: false });
+        }, 3000);
+
+        const allNodes = new Set([
+          ...newEdges.map((e) => e.from),
+          ...newEdges.map((e) => e.to),
+        ]);
+
+        if (allNodes.has(referenceNode)) {
+          const scores = newGraph.computeTrustScores(referenceNode);
+          setResults(scores);
+        } else if (allNodes.size > 0) {
+          const firstNode = Array.from(allNodes)[0];
+          setReferenceNode(firstNode);
+          const scores = newGraph.computeTrustScores(firstNode);
+          setResults(scores);
+        }
+      } catch (error) {
+        console.error("Error importing CSV:", error);
+        setToast({
+          message:
+            error instanceof Error ? error.message : "Error importing CSV file",
+          visible: true,
+        });
+
+        setTimeout(() => {
+          setToast({ message: "", visible: false });
+        }, 3000);
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleImportButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   const handleNodeClick = useCallback(
     (nodeId: string) => {
       setReferenceNode(nodeId);
@@ -155,6 +303,19 @@ function App() {
           onChange={(e) => setReferenceNode(e.target.value)}
         />
         <button onClick={handleRecompute}>Compute Score</button>
+        <button onClick={handleExportCSV} className="export-button">
+          Export to CSV
+        </button>
+        <button onClick={handleImportButtonClick} className="import-button">
+          Import from CSV
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImportCSV}
+          accept=".csv"
+          style={{ display: "none" }}
+        />
       </div>
 
       <GraphVisualization edges={edges} onNodeClick={handleNodeClick} />
