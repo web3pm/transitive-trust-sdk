@@ -8,6 +8,7 @@ import React, {
 import { TransitiveTrustGraph } from "@ethereum-attestation-service/transitive-trust-sdk";
 import GraphVisualization from "./GraphVisualization";
 import "./App.css";
+import ReactDOM from "react-dom";
 
 function App() {
   const [sourceNode, setSourceNode] = useState("");
@@ -44,14 +45,34 @@ function App() {
     return g;
   }, []);
 
+  // Add a version counter for the graph to force refreshes
+  const [graphVersion, setGraphVersion] = useState(0);
+
+  // Helper function to determine edge color based on net score
+  const getEdgeColor = (netScore: number) => {
+    if (netScore > 0) {
+      // Green gradient for positive scores
+      const intensity = Math.min(netScore, 1); // Clamp to 1
+      return `rgba(0, ${Math.round(intensity * 180)}, 0, 0.8)`;
+    } else if (netScore < 0) {
+      // Red gradient for negative scores
+      const intensity = Math.min(Math.abs(netScore), 1); // Clamp to 1
+      return `rgba(${Math.round(intensity * 220)}, 0, 0, 0.8)`;
+    }
+    // Default color for zero scores
+    return `rgba(200, 200, 200, 0.8)`;
+  };
+
   const memoizedEdges = useMemo(() => {
     const allEdges = graph.getEdges().map((edge) => ({
       from: edge.source,
       to: edge.target,
-      label: `+${edge.positiveWeight}, -${edge.negativeWeight}`,
+      label: "",
+      netScore: edge.positiveWeight - edge.negativeWeight,
+      color: getEdgeColor(edge.positiveWeight - edge.negativeWeight),
     }));
     return allEdges;
-  }, [graph]);
+  }, [graph, graphVersion]); // Include graphVersion to refresh when the graph changes
 
   useEffect(() => {
     setEdges(memoizedEdges);
@@ -84,7 +105,11 @@ function App() {
       return;
     }
 
+    // Add the new edge
     graph.addEdge(sourceNode, targetNode, positiveWeight, negativeWeight);
+
+    // Increment the graph version to force an update
+    setGraphVersion((prev) => prev + 1);
 
     if (referenceNode) {
       const scores = graph.computeTrustScores(referenceNode);
@@ -191,6 +216,9 @@ function App() {
 
         setEdges(newEdges);
 
+        // Increment graph version to trigger a redraw
+        setGraphVersion((prev) => prev + 1);
+
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -243,22 +271,55 @@ function App() {
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
-      setReferenceNode(nodeId);
-
-      const scores = graph.computeTrustScores(nodeId);
-      setResults(scores);
-
-      setToast({
-        message: `Reference node set to ${nodeId}`,
-        visible: true,
+      // Use batch updates to minimize renders
+      ReactDOM.flushSync(() => {
+        setReferenceNode(nodeId);
+        const scores = graph.computeTrustScores(nodeId);
+        setResults(scores);
       });
 
-      setTimeout(() => {
-        setToast({ message: "", visible: false });
-      }, 3000);
+      // Separated toast logic to prevent cascading re-renders when toast disappears
+      if (nodeId) {
+        setToast({
+          message: `Reference node set to ${nodeId}`,
+          visible: true,
+        });
+
+        // Use a custom timer ref to manage toast without triggering cascading re-renders
+        const timerId = setTimeout(() => {
+          setToast((prevToast) => ({
+            ...prevToast,
+            visible: false,
+          }));
+        }, 3000);
+
+        // Store timer reference to clean it up if needed
+        return () => clearTimeout(timerId);
+      }
     },
     [graph]
   );
+
+  // Memoize the getNodeColor function to maintain stable reference
+  const memoizedGetNodeColor = useCallback(getEdgeColor, []);
+
+  // Memoize the GraphVisualization component
+  const memoizedVisualization = useMemo(() => {
+    return (
+      <GraphVisualization
+        edges={memoizedEdges}
+        onNodeClick={handleNodeClick}
+        trustScores={results}
+        getNodeColor={memoizedGetNodeColor}
+      />
+    );
+  }, [
+    memoizedEdges,
+    handleNodeClick,
+    results,
+    memoizedGetNodeColor,
+    graphVersion,
+  ]);
 
   return (
     <div className="App">
@@ -318,7 +379,7 @@ function App() {
         />
       </div>
 
-      <GraphVisualization edges={edges} onNodeClick={handleNodeClick} />
+      {memoizedVisualization}
 
       {results && (
         <div className="results">
