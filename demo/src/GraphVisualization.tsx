@@ -146,15 +146,12 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
         },
       };
 
-      // Destroy existing network if it exists
       if (networkRef.current) {
         networkRef.current.destroy();
       }
 
-      // Create network
       networkRef.current = new Network(containerRef.current, data, options);
 
-      // Handle node clicks
       networkRef.current.on("click", function (params) {
         if (params.nodes.length > 0) {
           const nodeId = params.nodes[0];

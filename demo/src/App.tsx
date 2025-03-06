@@ -45,21 +45,16 @@ function App() {
     return g;
   }, []);
 
-  // Add a version counter for the graph to force refreshes
   const [graphVersion, setGraphVersion] = useState(0);
 
-  // Helper function to determine edge color based on net score
   const getEdgeColor = (netScore: number) => {
     if (netScore > 0) {
-      // Green gradient for positive scores
-      const intensity = Math.min(netScore, 1); // Clamp to 1
+      const intensity = Math.min(netScore, 1);
       return `rgba(0, ${Math.round(intensity * 180)}, 0, 0.8)`;
     } else if (netScore < 0) {
-      // Red gradient for negative scores
-      const intensity = Math.min(Math.abs(netScore), 1); // Clamp to 1
+      const intensity = Math.min(Math.abs(netScore), 1);
       return `rgba(${Math.round(intensity * 220)}, 0, 0, 0.8)`;
     }
-    // Default color for zero scores
     return `rgba(200, 200, 200, 0.8)`;
   };
 
@@ -72,7 +67,7 @@ function App() {
       color: getEdgeColor(edge.positiveWeight - edge.negativeWeight),
     }));
     return allEdges;
-  }, [graph, graphVersion]); // Include graphVersion to refresh when the graph changes
+  }, [graph, graphVersion]);
 
   useEffect(() => {
     setEdges(memoizedEdges);
@@ -105,10 +100,8 @@ function App() {
       return;
     }
 
-    // Add the new edge
     graph.addEdge(sourceNode, targetNode, positiveWeight, negativeWeight);
 
-    // Increment the graph version to force an update
     setGraphVersion((prev) => prev + 1);
 
     if (referenceNode) {
@@ -216,7 +209,6 @@ function App() {
 
         setEdges(newEdges);
 
-        // Increment graph version to trigger a redraw
         setGraphVersion((prev) => prev + 1);
 
         if (fileInputRef.current) {
@@ -271,21 +263,18 @@ function App() {
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
-      // Use batch updates to minimize renders
       ReactDOM.flushSync(() => {
         setReferenceNode(nodeId);
         const scores = graph.computeTrustScores(nodeId);
         setResults(scores);
       });
 
-      // Separated toast logic to prevent cascading re-renders when toast disappears
       if (nodeId) {
         setToast({
           message: `Reference node set to ${nodeId}`,
           visible: true,
         });
 
-        // Use a custom timer ref to manage toast without triggering cascading re-renders
         const timerId = setTimeout(() => {
           setToast((prevToast) => ({
             ...prevToast,
@@ -293,17 +282,14 @@ function App() {
           }));
         }, 3000);
 
-        // Store timer reference to clean it up if needed
         return () => clearTimeout(timerId);
       }
     },
     [graph]
   );
 
-  // Memoize the getNodeColor function to maintain stable reference
   const memoizedGetNodeColor = useCallback(getEdgeColor, []);
 
-  // Memoize the GraphVisualization component
   const memoizedVisualization = useMemo(() => {
     return (
       <GraphVisualization
