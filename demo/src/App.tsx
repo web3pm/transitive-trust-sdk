@@ -175,6 +175,41 @@ function App() {
     }, 3000);
   };
 
+  const handleExportSortedScores = () => {
+    const scores = graph.computeTrustScores(referenceNode);
+    const sortedScores = sortTrustScores(scores);
+
+    // Convert the sorted scores object to CSV format
+    const csvContent = [
+      "Node,PositiveScore,NegativeScore,NetScore",
+      ...Object.entries(sortedScores).map(
+        ([node, score]) =>
+          `${node},${score.positiveScore},${score.negativeScore},${score.netScore}`
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", "trust_scores.csv");
+    link.style.visibility = "hidden";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setToast({
+      message: "CSV file downloaded successfully",
+      visible: true,
+    });
+
+    setTimeout(() => {
+      setToast({ message: "", visible: false });
+    }, 3000);
+  };
+
   const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -386,6 +421,10 @@ function App() {
         <button onClick={handleExportCSV} className="export-button">
           Export to CSV
         </button>
+        <button onClick={handleExportSortedScores} className="export-button">
+          Export sorted scores
+        </button>
+
         <button onClick={handleImportButtonClick} className="import-button">
           Import from CSV
         </button>
