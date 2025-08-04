@@ -30,18 +30,21 @@ function App() {
   const graph = useMemo(() => {
     const g = new TransitiveTrustGraph();
     g.addEdge("A", "B", 0.9, 0);
+    g.addEdge("A", "D", 0.9, 0);
+    g.addEdge("A", "E", 0.9, 0);
+    g.addEdge("A", "F", 0.9, 0);
+    g.addEdge("A", "G", 0.9, 0);
+    g.addEdge("A", "H", 0.9, 0);
+    g.addEdge("A", "I", 0.9, 0);
+    g.addEdge("A", "J", 0.9, 0);
     g.addEdge("B", "C", 0.1, 0);
-    g.addEdge("C", "D", 0.9, 0);
-    g.addEdge("A", "C", 0.1, 0);
-    g.addEdge("C", "E", 0.9, 0);
-    g.addEdge("B", "F", 0.9, 0);
-    g.addEdge("D", "E", 0.9, 0);
-    g.addEdge("E", "D", 0.9, 0);
-    g.addEdge("D", "C", 0.9, 0);
-    g.addEdge("E", "C", 0.9, 0);
-    g.addEdge("E", "F", 0, 1);
-    g.addEdge("F", "G", 0.9, 0);
-    g.addEdge("G", "C", 0, 0.9);
+    g.addEdge("D", "C", 0.1, 0);
+    g.addEdge("E", "C", 0.1, 0);
+    g.addEdge("F", "C", 0.1, 0);
+    g.addEdge("G", "C", 0.1, 0);
+    g.addEdge("H", "C", 0.1, 0);
+    g.addEdge("I", "C", 0.1, 0);
+    g.addEdge("J", "C", 0.1, 0);
     return g;
   }, []);
 
